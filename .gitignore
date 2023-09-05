@@ -23,3 +23,6 @@
 hs_err_pid*
 replay_pid*
 /CadastroServer/nbproject/private/
+/CadastroClient/nbproject/private/
+/CadastroServer/build/
+/CadastroClient/build/
