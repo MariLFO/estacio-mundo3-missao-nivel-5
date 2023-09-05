@@ -21,15 +21,23 @@ public class CadastroServer {
      * @param args the command line arguments
      */
     public static void main(String[] args) throws IOException {
-        EntityManagerFactory emf = Persistence.createEntityManagerFactory("cadastroPU");
+        int serverPort = 4321; // Porta na qual o servidor irá ouvir as conexões
+        EntityManagerFactory emf = Persistence.createEntityManagerFactory("CadastroServerPU");
         ProdutoJpaController ctrl = new ProdutoJpaController(emf);
         UsuarioJpaController ctrlUsu = new UsuarioJpaController(emf);
-        ServerSocket serverSocket = new ServerSocket(4321);
+        ServerSocket serverSocket = new ServerSocket(serverPort); // Cria um socket de servidor que escuta na porta especificada por conexões recebidas
 
+        System.out.println("Servidor aguardando conexões...");
+        
+        // Loop infinito para continuamente aceitar e processar conexões de clientes recebidas
         while (true) {
-            Socket socket = serverSocket.accept();
-            CadastroThread thread = new CadastroThread(ctrl, ctrlUsu, socket);
+            // Aguarda um cliente se conectar e aceita a conexão (chamada bloqueante)
+            Socket clienteSocket = serverSocket.accept();
+            System.out.println("Cliente conectado: " + clienteSocket.getInetAddress());
+            
+            CadastroThread thread = new CadastroThread(ctrl, ctrlUsu, clienteSocket);
             thread.start();
+            System.out.println("Aguardando nova conexão...");
         }
     }
 }

@@ -20,6 +20,8 @@ public class CadastroThread extends Thread {
     private ProdutoJpaController ctrl;
     private UsuarioJpaController ctrlUsu;
     private Socket s1;
+    private ObjectOutputStream out;
+    private ObjectInputStream in;
 
     public CadastroThread(ProdutoJpaController ctrl, UsuarioJpaController ctrlUsu, Socket s1) {
         this.ctrl = ctrl;
@@ -29,27 +31,55 @@ public class CadastroThread extends Thread {
 
     @Override
     public void run() {
+        String login = "anonimo";
+        
         try {
-            ObjectOutputStream out = new ObjectOutputStream(s1.getOutputStream());
-            ObjectInputStream in = new ObjectInputStream(s1.getInputStream());
+            out = new ObjectOutputStream(s1.getOutputStream());
+            in = new ObjectInputStream(s1.getInputStream());
+            
+            System.out.println("Cliente conectado, aguardando login e senha.");
 
-            String login = (String) in.readObject();
+            login = (String) in.readObject();
             String senha = (String) in.readObject();
 
             Usuario usuario = ctrlUsu.findUsuario(login, senha);
             if (usuario == null) {
+                System.out.println("Usuário inválido. Login="+ login +", Senha="+ senha);
                 out.writeObject("Usuário inválido.");
                 return;
             }
+            
+            System.out.println("Usuário "+ login +" conectado com sucesso.");
+            out.writeObject("Usuário conectado com sucesso.");
 
-            while (true) {
-                String comando = (String) in.readObject();
-                if (comando.equals("L")) {
-                    out.writeObject(ctrl.findProdutoEntities());
-                }
-            }
+            System.out.println("Aguardando comandos...");
+            String comando = (String) in.readObject();
+            
+            if (comando.equals("L")) {
+                System.out.println("Comando recebido, listando produtos.");
+                out.writeObject(ctrl.findProdutoEntities());
+            }            
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
+        } finally {
+            close();
+            System.out.println("Conexão com " + login +" finalizada.");
+        }
+    }
+    
+    private void close() {
+        try {
+            if (out != null) {
+                out.close();
+            }
+            if (in != null) {
+                in.close();
+            }
+            if (s1 != null) {
+                s1.close();
+            }
+        } catch (IOException ex) {
+            System.out.println("Falha ao fechar conexão.");
         }
     }
 }
