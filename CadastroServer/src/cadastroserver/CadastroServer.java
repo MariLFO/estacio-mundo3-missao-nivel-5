@@ -4,6 +4,8 @@
  */
 package cadastroserver;
 
+import controller.MovimentoJpaController;
+import controller.PessoaJpaController;
 import controller.ProdutoJpaController;
 import controller.UsuarioJpaController;
 import java.io.IOException;
@@ -25,6 +27,8 @@ public class CadastroServer {
         EntityManagerFactory emf = Persistence.createEntityManagerFactory("CadastroServerPU");
         ProdutoJpaController ctrl = new ProdutoJpaController(emf);
         UsuarioJpaController ctrlUsu = new UsuarioJpaController(emf);
+        MovimentoJpaController ctrlMov = new MovimentoJpaController(emf);
+        PessoaJpaController ctrlPessoa = new PessoaJpaController(emf);
         ServerSocket serverSocket = new ServerSocket(serverPort); // Cria um socket de servidor que escuta na porta especificada por conexões recebidas
 
         System.out.println("Servidor aguardando conexões...");
@@ -35,7 +39,12 @@ public class CadastroServer {
             Socket clienteSocket = serverSocket.accept();
             System.out.println("Cliente conectado: " + clienteSocket.getInetAddress());
             
-            CadastroThread thread = new CadastroThread(ctrl, ctrlUsu, clienteSocket);
+            // CadastroThread V1:
+            // CadastroThread thread = new CadastroThread(ctrl, ctrlUsu, clienteSocket);
+            
+            // CadastroThread V2:
+            CadastroThreadV2 thread = new CadastroThreadV2(ctrl, ctrlUsu, ctrlMov, ctrlPessoa, clienteSocket);
+            
             thread.start();
             System.out.println("Aguardando nova conexão...");
         }
