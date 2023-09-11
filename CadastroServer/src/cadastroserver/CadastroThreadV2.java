@@ -12,9 +12,6 @@ import controller.MovimentoJpaController;
 import controller.PessoaJpaController;
 import controller.ProdutoJpaController;
 import controller.UsuarioJpaController;
-import controller.exceptions.NonexistentEntityException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import model.Usuario;
 import model.Movimento;
 import model.Produto;
@@ -31,7 +28,8 @@ public class CadastroThreadV2 extends Thread {
     private Socket s1;
     private ObjectOutputStream out;
     private ObjectInputStream in;
-    
+    private Usuario usuario;
+
     public CadastroThreadV2(ProdutoJpaController ctrl, UsuarioJpaController ctrlUsu, MovimentoJpaController ctrlMov, PessoaJpaController ctrlPessoa, Socket s1) {
         this.ctrl = ctrl;
         this.ctrlUsu = ctrlUsu;
@@ -51,8 +49,8 @@ public class CadastroThreadV2 extends Thread {
             
             login = (String) in.readObject();
             String senha = (String) in.readObject();
+            usuario = ctrlUsu.findUsuario(login, senha);
 
-            Usuario usuario = ctrlUsu.findUsuario(login, senha);
             if (usuario == null) {
                 System.out.println("Usuário inválido. Login="+ login +", Senha="+ senha);
                 out.writeObject("Usuário inválido.");
@@ -61,53 +59,85 @@ public class CadastroThreadV2 extends Thread {
 
             System.out.println("Usuário "+ login +" conectado com sucesso.");
             out.writeObject("Usuário conectado com sucesso.");
+            out.flush();
             
-            while (true) {
-                System.out.println("Aguardando comandos...");
-                Character comando = in.readChar();
-                
-                if (comando == 'L') {
-                    System.out.println("Comando recebido, listando produtos.");
-                    out.writeObject(ctrl.findProdutoEntities());
-                } else if (comando == 'E' || comando == 'S') {
-                    int idPessoa = (int) in.readObject();
-                    int idProduto = (int) in.readObject();
-                    int quantidade = (int) in.readObject();
-                    long valorUnitario = (long) in.readObject();
-
-                    Produto produto = ctrl.findProduto(idProduto);
-                    if (produto == null) {
-                        out.writeObject("Produto inválido.");
-                        continue;
-                    }
-
-                    Movimento movimento = new Movimento();
-                    movimento.setTipo(comando);
-                    movimento.setUsuarioidUsuario(usuario);
-                    movimento.setPessoaidPessoa(ctrlPessoa.findPessoa(idPessoa));
-                    movimento.setProdutoidProduto(produto);
-                    movimento.setQuantidade(quantidade);
-                    movimento.setValorUnitario(valorUnitario);
-
-                    ctrlMov.create(movimento);
-
-                    if (comando.equals('E')) {
-                        produto.setQuantidade(produto.getQuantidade() + quantidade);
-                    } else if (comando.equals('S')) {
-                        produto.setQuantidade(produto.getQuantidade() - quantidade);
-                    }
-
-                    ctrl.edit(produto);
-
-                    out.writeObject("Movimento registrado com sucesso.");
-                }
+            Boolean continuaProcesso = true;
+            while (continuaProcesso) {
+                continuaProcesso = processaComando();
             }
-        } catch (IOException | ClassNotFoundException e) {
+        } catch (Exception e) {
             e.printStackTrace();
-        } catch (NonexistentEntityException ex) {
-            Logger.getLogger(CadastroThreadV2.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (Exception ex) {
-            Logger.getLogger(CadastroThreadV2.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            close();
+            System.out.println("Conexão com " + login +" finalizada.");
+        }
+    }
+
+    private Boolean processaComando() throws Exception {
+        System.out.println("Aguardando comandos...");
+        Character comando = in.readChar();
+
+        switch (comando) {
+            case 'L':
+                System.out.println("Comando recebido, listando produtos.");
+                out.writeObject(ctrl.findProdutoEntities());
+                return true;
+            case 'E':
+            case 'S':
+                System.out.println("Comando Movimento tipo ["+ comando +"] recebido.");
+                int idPessoa = in.readInt();
+                int idProduto = in.readInt();
+                int quantidade = in.readInt();
+                long valorUnitario = in.readLong();
+
+                Produto produto = ctrl.findProduto(idProduto);
+                if (produto == null) {
+                    out.writeObject("Produto inválido.");
+                    return true;
+                }
+                
+                if (comando.equals('E')) {
+                    produto.setQuantidade(produto.getQuantidade() + quantidade);
+                } else if (comando.equals('S')) {
+                    produto.setQuantidade(produto.getQuantidade() - quantidade);
+                }
+
+                ctrl.edit(produto);
+
+                Movimento movimento = new Movimento();
+                movimento.setTipo(comando);
+                movimento.setUsuarioidUsuario(usuario);
+                movimento.setPessoaidPessoa(ctrlPessoa.findPessoa(idPessoa));
+                movimento.setProdutoidProduto(produto);
+                movimento.setQuantidade(quantidade);
+                movimento.setValorUnitario(valorUnitario);
+
+                ctrlMov.create(movimento);
+                out.writeObject("Movimento registrado com sucesso.");
+                out.flush();
+                System.out.println("Movimento registrado com sucesso.");
+                return true;
+            case 'X':
+                return false;
+            default:
+                System.out.println("Opção inválida!");
+                return true;
+        }
+    }
+    
+    private void close() {
+        try {
+            if (out != null) {
+                out.close();
+            }
+            if (in != null) {
+                in.close();
+            }
+            if (s1 != null) {
+                s1.close();
+            }
+        } catch (IOException ex) {
+            System.out.println("Falha ao fechar conexão.");
         }
     }
 }
